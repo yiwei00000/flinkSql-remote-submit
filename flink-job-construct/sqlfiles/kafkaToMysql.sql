@@ -31,7 +31,7 @@ CREATE TABLE user_behavior_sink (
     'connector.url' = 'jdbc:mysql://localhost:3306/hot_data_analysis', -- jdbc url
     'connector.table' = 'pvuv_sink', -- 表名
     'connector.username' = 'root', -- 用户名
-    'connector.password' = 'ml123456', -- 密码
+    'connector.password' = '123456', -- 密码
     'connector.write.flush.max-rows' = '1' -- 默认5000条，为了演示改为1条
 );
 
