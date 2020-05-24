@@ -86,7 +86,7 @@ public class SqlEngine {
         for (String funcSentence : funcSentences) {
             final String[] split = funcSentence.split("\\s+");
             final String funcName = split[2];
-            final String funcClass = split[4];
+            final String funcClass = split[4].replace("'","");
             this.createFunction(context,funcName, funcClass);
         }
     }

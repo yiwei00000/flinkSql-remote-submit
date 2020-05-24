@@ -32,7 +32,7 @@ public class SqlJobLocalExecute {
 
         String sql = null;
         try {
-            final File file = new File("/work/workspace/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-function.sql");
+            final File file = new File("/work/workspace/tmp/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-function.sql");
             sql = Files.toString(file, Charsets.UTF_8);
         } catch (IOException e) {
             e.printStackTrace();
@@ -94,7 +94,8 @@ public class SqlJobLocalExecute {
     private static void createFunction(TableEnvironment tEnv, String funcName, String funcClass) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
 
         System.out.println("createFunction================");
-        final Class<?> funcClazz = Class.forName(funcClass);
+        final Class<?> funcClazz =
+                Class.forName(funcClass.replace("'", ""));
         final Object o = funcClazz.newInstance();
         tEnv.registerFunction(funcName, (ScalarFunction) o);
         //todo 待添加 tablefunction  aggfunction
