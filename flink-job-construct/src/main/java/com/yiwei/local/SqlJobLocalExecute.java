@@ -32,7 +32,7 @@ public class SqlJobLocalExecute {
 
         String sql = null;
         try {
-            final File file = new File("/work/workspace/tmp/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-function.sql");
+            final File file = new File("/work/workspace/tmp/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-string.sql");
             sql = Files.toString(file, Charsets.UTF_8);
         } catch (IOException e) {
             e.printStackTrace();
