@@ -19,8 +19,9 @@ rest远程提交：
 参数样例：  
 {  
  "dependencyJarsDir": "./dependencies",  
- "sql": "/qsc/flink-sql-api/sqlsumbit/kafkaToConsole-function.sql"  
-}
+ "sql": "${path}/kafkaToConsole-function.sql"  
+}  
+${path}根据文件位置替换
 
 若有问题请添加微信：yiwei0991
 
