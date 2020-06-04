@@ -2,7 +2,7 @@
 模块介绍:  
 1、flink-sql-mix：定义source、sink及udf模块  
 2、flink-remote-api：rest提交模块  
-3、flink-job-construct：构造jobgrap及提交到yarn模块  
+3、flink-job-construct：构造jobgraph及提交到yarn模块  
 
 本地提交：  
 入口类：com.yiwei.local.SqlJobLocalExecute  
