@@ -125,4 +125,21 @@ public class SqlJobController {
         return JSON.toJSONString(opRs);
 
     }
+
+    @PostMapping("/sqlValidate")
+    public String sqlValidate(@RequestBody SubmitJobConfig config) {
+
+        OperateResult opRs = new OperateResult();
+        try {
+            jobService.sqlValidate(config);
+            opRs.setCode(0);
+            opRs.setMessage("Sql has been validated!!!");
+        } catch (Exception e) {
+            e.printStackTrace();
+            opRs.setCode(1);
+            opRs.setMessage("Sql validated field!!! , error msg : " + e.getMessage());
+        }
+        return JSON.toJSONString(opRs);
+
+    }
 }

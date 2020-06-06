@@ -8,6 +8,7 @@ import com.yiwei.service.JobService;
 import com.yiwei.sql.config.JobRunConfig;
 import com.yiwei.sql.config.JobRunType;
 import com.yiwei.sql.graph.FlinkJobGraph;
+import com.yiwei.sql.parser.SqlParserUtil;
 import com.yiwei.utils.YarnClientUtil;
 import org.apache.flink.client.cli.CustomCommandLine;
 import org.apache.flink.configuration.Configuration;
@@ -97,5 +98,10 @@ public class JobServiceImpl implements JobService {
         tuple2._2.close();
 
         return trackingUrl;
+    }
+
+    @Override
+    public void sqlValidate(SubmitJobConfig config)  {
+        SqlParserUtil.parseSqlContext(config.getSql());
     }
 }

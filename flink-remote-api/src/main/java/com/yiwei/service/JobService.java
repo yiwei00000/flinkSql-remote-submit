@@ -18,4 +18,6 @@ public interface JobService {
 
     String jobLogAddress(String applicationId) throws IOException, YarnException;
 
+    void sqlValidate(SubmitJobConfig config) throws Exception;
+
 }
