@@ -13,6 +13,7 @@ import java.util.Map;
 
 /**
  * Created by yiwei 2020/5/23
+ * 支持源以单string字段的方式创建source表
  */
 public class StringRowFormatFactory extends TableFormatFactoryBase<Row>
         implements SerializationSchemaFactory<Row>, DeserializationSchemaFactory<Row> {

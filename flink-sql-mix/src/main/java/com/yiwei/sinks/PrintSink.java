@@ -17,6 +17,7 @@ import static org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoT
 
 /**
  * Created by yiwei 2020/4/16
+ * 控制台打印
  */
 public class PrintSink implements AppendStreamTableSink<Row> {
 
