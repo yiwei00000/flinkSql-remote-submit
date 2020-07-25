@@ -4,6 +4,7 @@ package com.yiwei.sql;
 import com.yiwei.context.ExecutionContext;
 import com.yiwei.sql.config.JobConfig;
 import com.yiwei.sql.parser.SqlNodeInfo;
+import org.apache.calcite.schema.StreamableTable;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.jobgraph.JobGraph;
@@ -11,8 +12,11 @@ import org.apache.flink.sql.parser.ddl.SqlCreateTable;
 import org.apache.flink.sql.parser.ddl.SqlCreateView;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
+import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.ScalarFunction;
+import org.apache.flink.table.functions.TableFunction;
 
 import java.util.List;
 
@@ -117,11 +121,16 @@ public class SqlEngine {
 
     private void createFunction(ExecutionContext<?> context, String funcName, String funcClass) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
-        TableEnvironment tEnv = envInst.getTableEnvironment();
+        StreamTableEnvironment tEnv = (StreamTableEnvironment)envInst.getTableEnvironment();
 
         final Class<?> funcClazz = Class.forName(funcClass);
         final Object o = funcClazz.newInstance();
-        tEnv.registerFunction(funcName, (ScalarFunction) o);
-        //todo 待添加 tablefunction  aggfunction
+        if(o instanceof ScalarFunction){
+            tEnv.registerFunction(funcName, (ScalarFunction) o);
+        }else if(o instanceof AggregateFunction){
+            tEnv.registerFunction(funcName,(AggregateFunction) o);
+        }else if(o instanceof TableFunction){
+            tEnv.registerFunction(funcName,(TableFunction) o);
+        }
     }
 }

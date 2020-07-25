@@ -12,7 +12,9 @@ import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
+import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.ScalarFunction;
+import org.apache.flink.table.functions.TableFunction;
 
 import java.io.File;
 import java.io.IOException;
@@ -71,7 +73,7 @@ public class SqlJobLocalExecute {
     }
 
 
-    private static void createTable(TableEnvironment tEnv, SqlNodeInfo sqlNode) throws SqlExecutionException {
+    private static void createTable(StreamTableEnvironment tEnv, SqlNodeInfo sqlNode) throws SqlExecutionException {
 
         try {
             tEnv.sqlUpdate(sqlNode.getOriginSql());
@@ -80,7 +82,7 @@ public class SqlJobLocalExecute {
         }
     }
 
-    private static void createView(TableEnvironment tEnv, SqlNodeInfo sqlNode) throws SqlExecutionException {
+    private static void createView(StreamTableEnvironment tEnv, SqlNodeInfo sqlNode) throws SqlExecutionException {
 
         try {
             String subQuery = ((SqlCreateView) (sqlNode.getSqlNode())).getQuery().toString();
@@ -91,13 +93,18 @@ public class SqlJobLocalExecute {
         }
     }
 
-    private static void createFunction(TableEnvironment tEnv, String funcName, String funcClass) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+    private static void createFunction(StreamTableEnvironment tEnv, String funcName, String funcClass) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
 
         System.out.println("createFunction================");
         final Class<?> funcClazz =
                 Class.forName(funcClass.replace("'", ""));
         final Object o = funcClazz.newInstance();
-        tEnv.registerFunction(funcName, (ScalarFunction) o);
-        //todo 待添加 tablefunction  aggfunction
+        if(o instanceof ScalarFunction){
+            tEnv.registerFunction(funcName, (ScalarFunction) o);
+        }else if(o instanceof AggregateFunction){
+            tEnv.registerFunction(funcName,(AggregateFunction) o);
+        }else if(o instanceof TableFunction){
+            tEnv.registerFunction(funcName,(TableFunction) o);
+        }
     }
 }

@@ -44,7 +44,7 @@ public class SqlParserUtil {
 
         List<SqlNodeInfo> sqlNodeInfoList = new ArrayList();
         for (SqlInfo sqlInfo : sqlInfos) {
-            if (StringUtils.isBlank(sqlInfo.getSqlContent()) || sqlInfo.getSqlContent().startsWith("create function")) {
+            if (StringUtils.isBlank(sqlInfo.getSqlContent()) || sqlInfo.getSqlContent().contains("create function")) {
                 continue;
             }
 
@@ -63,7 +63,7 @@ public class SqlParserUtil {
         List<SqlInfo> sqlInfos = SqlLists.getSQLList(sql);
         List<String> functionSqls = new ArrayList();
         for (SqlInfo sqlInfo : sqlInfos) {
-            if (StringUtils.isNotBlank(sqlInfo.getSqlContent()) && sqlInfo.getSqlContent().startsWith("create function")) {
+            if (StringUtils.isNotBlank(sqlInfo.getSqlContent()) && sqlInfo.getSqlContent().contains("create function")) {
                 functionSqls.add(sqlInfo.getSqlContent());
             }
         }
