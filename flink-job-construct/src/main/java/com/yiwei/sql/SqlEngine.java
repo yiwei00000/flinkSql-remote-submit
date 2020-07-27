@@ -88,7 +88,7 @@ public class SqlEngine {
     public void registerFunction(List<String> funcSentences, ExecutionContext<?> context) throws IllegalAccessException, InstantiationException, ClassNotFoundException {
 
         for (String funcSentence : funcSentences) {
-            final String[] split = funcSentence.split("\\s+");
+            final String[] split = funcSentence.replaceAll("\\n", "").split("\\s+");
             final String funcName = split[2];
             final String funcClass = split[4].replace("'","");
             this.createFunction(context,funcName, funcClass);

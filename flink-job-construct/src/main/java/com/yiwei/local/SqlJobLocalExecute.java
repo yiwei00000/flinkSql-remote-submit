@@ -53,7 +53,7 @@ public class SqlJobLocalExecute {
         });
 
         functionSqls.forEach(sqlSentence -> {
-            final String[] split = sqlSentence.split("\\s+");
+            final String[] split = sqlSentence.replaceAll("\\n", "").split("\\s+");
             final String funcName = split[2];
             final String funcClass = split[4];
             try {
