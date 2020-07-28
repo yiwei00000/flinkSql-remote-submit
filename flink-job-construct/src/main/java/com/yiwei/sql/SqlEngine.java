@@ -4,6 +4,7 @@ package com.yiwei.sql;
 import com.yiwei.context.ExecutionContext;
 import com.yiwei.sql.config.JobConfig;
 import com.yiwei.sql.parser.SqlNodeInfo;
+import com.yiwei.utils.ClassLoaderUtil;
 import org.apache.calcite.schema.StreamableTable;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.configuration.Configuration;
@@ -18,6 +19,7 @@ import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.TableFunction;
 
+import java.net.MalformedURLException;
 import java.util.List;
 
 /**
@@ -123,7 +125,21 @@ public class SqlEngine {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
         StreamTableEnvironment tEnv = (StreamTableEnvironment)envInst.getTableEnvironment();
 
-        final Class<?> funcClazz = Class.forName(funcClass);
+        //每次创建func时，重新加载jar包
+        final ClassLoaderUtil classLoaderUtil = new ClassLoaderUtil();
+        String jarName = "flink-sql-utils-1.0-SNAPSHOT.jar";
+        String jarPath = "";
+        final String userDir = System.getProperties().getProperty("user.dir");
+        jarPath = userDir + "/../dependencies";
+
+        classLoaderUtil.unloadJarFile(jarName, jarPath);
+        try {
+            classLoaderUtil.loadJar(jarName, jarPath);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+
+        final Class<?> funcClazz = classLoaderUtil.loadClass(jarName, funcClass);
         final Object o = funcClazz.newInstance();
         if(o instanceof ScalarFunction){
             tEnv.registerFunction(funcName, (ScalarFunction) o);
