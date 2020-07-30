@@ -1,6 +1,7 @@
 package com.yiwei.sql;
 
 
+import com.yiwei.cli.FlinkCliFrontend;
 import com.yiwei.context.ExecutionContext;
 import com.yiwei.sql.config.JobConfig;
 import com.yiwei.sql.parser.SqlNodeInfo;
@@ -8,6 +9,7 @@ import com.yiwei.utils.ClassLoaderUtil;
 import org.apache.calcite.schema.StreamableTable;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.sql.parser.ddl.SqlCreateTable;
 import org.apache.flink.sql.parser.ddl.SqlCreateView;
@@ -33,7 +35,7 @@ public class SqlEngine {
 
         ExecutionConfig.GlobalJobParameters globalJobParameters = envInst.getExecutionConfig().getGlobalJobParameters();
         if (globalJobParameters == null) {
-            globalJobParameters = new Configuration();
+            globalJobParameters = GlobalConfiguration.loadConfiguration(FlinkCliFrontend.getConfigurationDirectoryFromEnv());
         }
 
         Configuration configuration = (Configuration) globalJobParameters;

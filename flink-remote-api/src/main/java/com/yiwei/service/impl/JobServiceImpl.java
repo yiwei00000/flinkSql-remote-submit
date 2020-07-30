@@ -12,6 +12,7 @@ import com.yiwei.sql.parser.SqlParserUtil;
 import com.yiwei.utils.YarnClientUtil;
 import org.apache.flink.client.cli.CustomCommandLine;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
@@ -43,7 +44,7 @@ public class JobServiceImpl implements JobService {
                 .build();
         final String dependencyJarsDir = config.getDependencyJarsDir();
         final String configurationDirectory = FlinkCliFrontend.getConfigurationDirectoryFromEnv();
-        final Configuration configuration = new Configuration();
+        final Configuration configuration = GlobalConfiguration.loadConfiguration(configurationDirectory);
         final List<CustomCommandLine<?>> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(configuration, configurationDirectory);
         final FlinkCliFrontend flinkCliFrontend = new FlinkCliFrontend(configuration, customCommandLines);
 
@@ -101,7 +102,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public void sqlValidate(SubmitJobConfig config)  {
+    public void sqlValidate(SubmitJobConfig config) {
         SqlParserUtil.parseSqlContext(config.getSql());
     }
 }
