@@ -12,7 +12,7 @@ create TABLE user_log (
 --    'connector.startup-mode' = 'earliest-offset',-- 从起始 offset 开始读取
     'connector.startup-mode' = 'latest-offset',-- 从最新 offset 开始读取
     'connector.properties.0.key' = 'bootstrap.servers',-- 连接信息
-    'connector.properties.0.value' = 'hd1-tech-vpc-back-flink-hangzhou-prod-002:9092',
+    'connector.properties.0.value' = 'localhost:9092',
     'connector.properties.1.key' = 'group.id',
     'connector.properties.1.value' = 'testGroup',
     'format.type' = 'json',-- 数据源格式为 json
