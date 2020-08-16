@@ -25,8 +25,8 @@ rest远程提交：
 ${path}根据文件位置替换
 
 rest提交注意事项：  
-1、程序部署服务器要配置FLINK_CONF_DIR    
-2、flink-dist*.jar要放到$FLINK_HOME/lib下，否认这会报找不到类YarnJobClusterEntrypoint。  
+1、程序部署服务器要配置FLINK_CONF_DIR   
+2、flink*.jar要放到dependencies下,不再去flink/lib下加载
 3、http://ip:port/job/submit 接口嵌入前端界面可以直接写sql，也可以指定部署服务器上的sql路径  
 4、dependencyJarsDir依赖jar包的路径可以根据自己部署路径任意变动，要做出适当修改 
 5、resources中的配置文件替换成你的集群的中的配置文件
