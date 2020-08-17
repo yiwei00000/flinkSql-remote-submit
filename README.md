@@ -1,4 +1,5 @@
 # 远程提交flink sql 到  yarn集群
+目前支持flink-1.9.3版本 
 
 模块介绍:  
 1、flink-sql-mix：定义source、sink、udf/udaf/udtf模块,支持该模块的热部署（及每次提交都会重新加载该模块的jar包）  
@@ -28,7 +29,7 @@ rest提交注意事项：
 1、程序部署服务器要配置FLINK_CONF_DIR,只用于读取配置文件   
 2、flink*.jar要放到dependencies下,不再去flink/lib下加载  
 3、http://ip:port/job/submit 接口嵌入前端界面可以直接写sql，也可以指定部署服务器上的sql路径  
-4、dependencyJarsDir依赖jar包的路径可以根据自己部署路径任意变动，要做出适当修改 
+4、dependencyJarsDir依赖jar包的路径可以根据自己部署路径任意变动，要做出适当修改  
 5、resources中的配置文件替换成你的集群的中的配置文件
 
 
