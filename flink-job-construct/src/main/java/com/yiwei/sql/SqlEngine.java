@@ -89,13 +89,13 @@ public class SqlEngine {
         });
     }
 
-    public void registerFunction(List<String> funcSentences, ExecutionContext<?> context) throws IllegalAccessException, InstantiationException, ClassNotFoundException {
+    public void registerFunction(List<String> funcSentences, ExecutionContext<?> context,String dependencyJarsDir) throws IllegalAccessException, InstantiationException, ClassNotFoundException {
 
         for (String funcSentence : funcSentences) {
             final String[] split = funcSentence.replaceAll("\\n", "").split("\\s+");
             final String funcName = split[2];
             final String funcClass = split[4].replace("'","");
-            this.createFunction(context,funcName, funcClass);
+            this.createFunction(context,funcName, funcClass,dependencyJarsDir);
         }
     }
 
@@ -123,20 +123,17 @@ public class SqlEngine {
         }
     }
 
-    private void createFunction(ExecutionContext<?> context, String funcName, String funcClass) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+    private void createFunction(ExecutionContext<?> context, String funcName, String funcClass,String dependencyJarsDir) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
         StreamTableEnvironment tEnv = (StreamTableEnvironment)envInst.getTableEnvironment();
 
         //每次创建func时，重新加载jar包
         final ClassLoaderUtil classLoaderUtil = new ClassLoaderUtil();
-        String jarName = "flink-sql-utils-1.0-SNAPSHOT.jar";
-        String jarPath = "";
-        final String userDir = System.getProperties().getProperty("user.dir");
-        jarPath = userDir + "/../dependencies";
+        String jarName = "flink-sql-mix-1.0-SNAPSHOT.jar";
 
-        classLoaderUtil.unloadJarFile(jarName, jarPath);
+        classLoaderUtil.unloadJarFile(jarName, dependencyJarsDir);
         try {
-            classLoaderUtil.loadJar(jarName, jarPath);
+            classLoaderUtil.loadJar(jarName, dependencyJarsDir);
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }

@@ -60,7 +60,7 @@ public class FlinkJobGraph {
         final List<String> functionSqls = SqlParserUtil.getCreateFunctionSql(sql);
         final SqlEngine sqlEngine = new SqlEngine();
         sqlEngine.registerDDL(sqlNodeInfos, context);
-        sqlEngine.registerFunction(functionSqls, context);
+        sqlEngine.registerFunction(functionSqls, context,dependencyJarsDir);
 
         List<String> insertSqlList = insertSqlNodeInfos.stream().map(SqlNodeInfo::getOriginSql).collect(Collectors.toList());
         return sqlEngine.jobGraph(context, insertSqlList, jobConfig);
