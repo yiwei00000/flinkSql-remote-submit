@@ -23,6 +23,7 @@ import org.apache.flink.table.functions.TableFunction;
 
 import java.net.MalformedURLException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author yiwei  2020/4/4
@@ -30,15 +31,20 @@ import java.util.List;
 @SuppressWarnings("rawtypes")
 public class SqlEngine {
 
-    public <C> JobGraph jobGraph(ExecutionContext<C> context, List<String> statements, JobConfig jobConfig) {
+    public JobGraph jobGraph(ExecutionContext context, List<String> statements, JobConfig jobConfig) {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
 
         ExecutionConfig.GlobalJobParameters globalJobParameters = envInst.getExecutionConfig().getGlobalJobParameters();
+        Configuration configuration = new Configuration();
         if (globalJobParameters == null) {
             globalJobParameters = GlobalConfiguration.loadConfiguration(FlinkCliFrontend.getConfigurationDirectoryFromEnv());
         }
+        final Map<String, String> propertiesMap = globalJobParameters.toMap();
+        propertiesMap.keySet().forEach(key -> {
+            final String value = propertiesMap.get(key);
+            configuration.setString(key,value);
+        });
 
-        Configuration configuration = (Configuration) globalJobParameters;
         jobConfig.getJobParameter().forEach(configuration::setString);
         envInst.getExecutionConfig().setGlobalJobParameters(configuration);
 
@@ -50,9 +56,9 @@ public class SqlEngine {
         try {
             // createJobGraph requires an optimization step that might reference UDFs during code compilation
             jobGraph = context.wrapClassLoader(() -> envInst.createJobGraph(jobName));
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // catch everything such that the statement does not crash the com.ppmon.bigdata.flink.sql.client.executor
-            throw new SqlExecutionException("Invalid SQL statement.", t);
+            throw new SqlExecutionException("Invalid SQL statement.", e);
         }
         return jobGraph;
 
@@ -61,7 +67,7 @@ public class SqlEngine {
     /**
      * Applies the given update statement to the given table environment with query configuration.
      */
-    private <C> void applyUpdate(ExecutionContext<C> context, TableEnvironment tableEnv, String updateStatement) {
+    private void applyUpdate(ExecutionContext context, TableEnvironment tableEnv, String updateStatement) {
         // parse and validate statement
         try {
             // update statement requires an optimization step that might reference UDFs during code compilation
@@ -76,7 +82,7 @@ public class SqlEngine {
         }
     }
 
-    public void registerDDL(List<SqlNodeInfo> sqlNodeInfoList, ExecutionContext<?> context) {
+    public void registerDDL(List<SqlNodeInfo> sqlNodeInfoList, ExecutionContext context) {
         //TODO 按照 function -> createTable -> createView 进行排序
 
         sqlNodeInfoList.forEach(sqlNode -> {
@@ -89,17 +95,17 @@ public class SqlEngine {
         });
     }
 
-    public void registerFunction(List<String> funcSentences, ExecutionContext<?> context,String dependencyJarsDir) throws IllegalAccessException, InstantiationException, ClassNotFoundException {
+    public void registerFunction(List<String> funcSentences, ExecutionContext context, String dependencyJarsDir) throws IllegalAccessException, InstantiationException, ClassNotFoundException {
 
         for (String funcSentence : funcSentences) {
             final String[] split = funcSentence.replaceAll("\\n", "").split("\\s+");
             final String funcName = split[2];
-            final String funcClass = split[4].replace("'","");
-            this.createFunction(context,funcName, funcClass,dependencyJarsDir);
+            final String funcClass = split[4].replace("'", "");
+            this.createFunction(context, funcName, funcClass, dependencyJarsDir);
         }
     }
 
-    private void createTable(ExecutionContext<?> context, SqlNodeInfo sqlNode) throws SqlExecutionException {
+    private void createTable(ExecutionContext context, SqlNodeInfo sqlNode) throws SqlExecutionException {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
         TableEnvironment tEnv = envInst.getTableEnvironment();
 
@@ -110,7 +116,7 @@ public class SqlEngine {
         }
     }
 
-    private void createView(ExecutionContext<?> context, SqlNodeInfo sqlNode) throws SqlExecutionException {
+    private void createView(ExecutionContext context, SqlNodeInfo sqlNode) throws SqlExecutionException {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
         TableEnvironment tEnv = envInst.getTableEnvironment();
 
@@ -123,9 +129,9 @@ public class SqlEngine {
         }
     }
 
-    private void createFunction(ExecutionContext<?> context, String funcName, String funcClass,String dependencyJarsDir) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+    private void createFunction(ExecutionContext context, String funcName, String funcClass, String dependencyJarsDir) throws SqlExecutionException, ClassNotFoundException, IllegalAccessException, InstantiationException {
         final ExecutionContext.EnvironmentInstance envInst = context.createEnvironmentInstance();
-        StreamTableEnvironment tEnv = (StreamTableEnvironment)envInst.getTableEnvironment();
+        StreamTableEnvironment tEnv = (StreamTableEnvironment) envInst.getTableEnvironment();
 
         //每次创建func时，重新加载jar包
         final ClassLoaderUtil classLoaderUtil = new ClassLoaderUtil();
@@ -140,12 +146,12 @@ public class SqlEngine {
 
         final Class<?> funcClazz = classLoaderUtil.loadClass(jarName, funcClass);
         final Object o = funcClazz.newInstance();
-        if(o instanceof ScalarFunction){
+        if (o instanceof ScalarFunction) {
             tEnv.registerFunction(funcName, (ScalarFunction) o);
-        }else if(o instanceof AggregateFunction){
-            tEnv.registerFunction(funcName,(AggregateFunction) o);
-        }else if(o instanceof TableFunction){
-            tEnv.registerFunction(funcName,(TableFunction) o);
+        } else if (o instanceof AggregateFunction) {
+            tEnv.registerFunction(funcName, (AggregateFunction) o);
+        } else if (o instanceof TableFunction) {
+            tEnv.registerFunction(funcName, (TableFunction) o);
         }
     }
 }

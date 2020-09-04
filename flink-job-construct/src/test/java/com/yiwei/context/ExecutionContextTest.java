@@ -36,7 +36,7 @@ public class ExecutionContextTest {
         JobConfig jobConfig = new JobConfig(jobRunConfig, new HashMap<>());
         String sql = null;
         try {
-            final File file = new File("/work/workspace/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-function.sql");
+            final File file = new File("/Users/rongjianmin/work/workspace/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-function.sql");
             sql = Files.toString(file, Charsets.UTF_8);
         } catch (IOException e) {
             e.printStackTrace();
@@ -48,9 +48,8 @@ public class ExecutionContextTest {
         final Options commandLineOptions = flinkCliFrontend.getCustomCommandLineOptions();
         final Option option = new Option("m", "", false, "yarn-cluster");
         commandLineOptions.addOption(option);
-        final List<CustomCommandLine<?>> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(new Configuration());
-        final ExecutionContext<?> context = EnvFactory.getExecutionContext(jobConfig, dependencyJars, sql, flinkCfg, commandLineOptions, customCommandLines);
-        final ClusterDescriptor<?> clusterDescriptor = context.createClusterDescriptor();
-        System.out.println(clusterDescriptor);
+        final List<CustomCommandLine> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(new Configuration());
+        final ExecutionContext context = EnvFactory.getExecutionContext(jobConfig, dependencyJars, sql, flinkCfg, commandLineOptions, customCommandLines);
+        final ExecutionContext.EnvironmentInstance environmentInstance = context.createEnvironmentInstance();
     }
 }

@@ -32,7 +32,7 @@ public class FlinkCliFrontendTest {
     public void cli() throws Exception {
         final String configurationDirectory = FlinkCliFrontend.getConfigurationDirectoryFromEnv();
         final Configuration configuration = new Configuration();
-        final List<CustomCommandLine<?>> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(configuration, configurationDirectory);
+        final List<CustomCommandLine> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(configuration, configurationDirectory);
 
         final FlinkCliFrontend flinkCliFrontend = new FlinkCliFrontend(configuration, customCommandLines);
 
@@ -44,8 +44,8 @@ public class FlinkCliFrontendTest {
         flinkCliFrontend.deploy(argsArr, jobGraph);
     }
 
-    private JobGraph getJobGraph(Configuration configuration, List<CustomCommandLine<?>> customCommandLines, FlinkCliFrontend flinkCliFrontend) throws SqlParseException, IllegalAccessException, ClassNotFoundException, InstantiationException {
-        String dependencyJarsDir = "./dependencies";
+    private JobGraph getJobGraph(Configuration configuration, List<CustomCommandLine> customCommandLines, FlinkCliFrontend flinkCliFrontend) throws SqlParseException, IllegalAccessException, ClassNotFoundException, InstantiationException {
+        String dependencyJarsDir = "/Users/rongjianmin/work/workspace/flinkSql-remote-submit/flink-job-construct/dependencies-1.10.2";
         JobRunConfig jobRunConfig = JobRunConfig.builder()
                 .jobName("test_deploy")
                 .defaultParallelism(1)
@@ -54,14 +54,14 @@ public class FlinkCliFrontendTest {
         JobConfig jobConfig = new JobConfig(jobRunConfig, new HashMap<>());
         String sql = null;
         try {
-            final File file = new File("/work/workspace/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-function.sql");
+            final File file = new File("/Users/rongjianmin/work/workspace/flinkSql-remote-submit/flink-job-construct/sqlfiles/kafkaToConsole-string.sql");
             sql = Files.toString(file, Charsets.UTF_8);
         } catch (IOException e) {
             e.printStackTrace();
         }
         List<File> dependencyJars = JarUtils.getJars(dependencyJarsDir);
         final Options commandLineOptions = flinkCliFrontend.getCustomCommandLineOptions();
-        final ExecutionContext<?> context = EnvFactory.getExecutionContext(jobConfig, dependencyJars, sql, configuration, commandLineOptions, customCommandLines);
+        final ExecutionContext context = EnvFactory.getExecutionContext(jobConfig, dependencyJars, sql, configuration, commandLineOptions, customCommandLines);
 
         final List<SqlNodeInfo> sqlNodeInfos = SqlParserUtil.parseSqlContext(sql);
         final List<SqlNodeInfo> inerstSqlNodeInfos = SqlParserUtil.getInerstSqlNodeInfos(sqlNodeInfos);

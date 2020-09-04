@@ -49,7 +49,7 @@ public class PrintSinkFactory implements StreamTableSinkFactory<Row> {
         List<String> list = new ArrayList<>();
         list.add("connector.type");
         // schema
-        list.add(SCHEMA + ".#." + SCHEMA_TYPE);
+        list.add(SCHEMA + ".#." + SCHEMA_DATA_TYPE);
         list.add(SCHEMA + ".#." + SCHEMA_NAME);
         return list;
     }

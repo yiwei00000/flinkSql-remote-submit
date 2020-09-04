@@ -43,24 +43,24 @@ public class EnvFactory {
                     "deployment:\n" +
                     "  response-timeout: 10000\n";
 
-    public static ExecutionContext<?> getExecutionContext(JobConfig jobConfig, List<File> dependencyJars, String sql,
-                                                          Configuration flinkConfig, Options commandLineOptions, List<CustomCommandLine<?>> commandLines) {
+    public static ExecutionContext getExecutionContext(JobConfig jobConfig, List<File> dependencyJars, String sql,
+                                                       Configuration flinkConfig, Options commandLineOptions, List<CustomCommandLine> commandLines) {
         final Environment sessionEnv = new Environment();
         final SessionContext session = new SessionContext(jobConfig.getJobRunConfig().getJobName(), sessionEnv);
         return getExecutionContext(jobConfig.getJobRunConfig(), dependencyJars, flinkConfig, commandLineOptions, commandLines, session);
 
     }
 
-    private static ExecutionContext<?> getExecutionContext(JobRunConfig jobRunConfig,
-                                                           List<File> dependencyJars,
-                                                           Configuration flinkConfig,
-                                                           Options commandLineOptions,
-                                                           List<CustomCommandLine<?>> commandLines,
-                                                           SessionContext session) {
+    private static ExecutionContext getExecutionContext(JobRunConfig jobRunConfig,
+                                                        List<File> dependencyJars,
+                                                        Configuration flinkConfig,
+                                                        Options commandLineOptions,
+                                                        List<CustomCommandLine> commandLines,
+                                                        SessionContext session) {
         //init env and dependencyJars
         Environment environment = getEnvironment(jobRunConfig);
         //init executionContext
-        return createExecutionContext(session, environment, dependencyJars, jobRunConfig, flinkConfig, commandLineOptions, commandLines);
+        return createExecutionContext(environment,dependencyJars, jobRunConfig, flinkConfig);
     }
 
     private static Environment getEnvironment(JobRunConfig jobRunConfig) {
@@ -83,14 +83,12 @@ public class EnvFactory {
         return environment;
     }
 
-    private static ExecutionContext<?> createExecutionContext(SessionContext session, Environment environment, List<File> dependencies, JobRunConfig jobRunConfig,
-                                                              Configuration flinkConfig, Options commandLineOptions, List<CustomCommandLine<?>> commandLines) {
+    private static ExecutionContext createExecutionContext(Environment environment,List<File> dependencies, JobRunConfig jobRunConfig, Configuration flinkConfig) {
         ExecutionContext executionContext;
         try {
-            executionContext = new ExecutionContext<>(environment, session, dependencies,
-                    flinkConfig, commandLineOptions, commandLines, jobRunConfig);
+            executionContext = new ExecutionContext(environment,dependencies,
+                    flinkConfig, jobRunConfig);
         } catch (Throwable t) {
-            // catch everything such that a configuration does not crash the com.ppmon.bigdata.flink.sql.client.executor
             throw new SqlExecutionException("Could not create execution context.", t);
         }
 

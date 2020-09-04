@@ -45,7 +45,7 @@ public class JobServiceImpl implements JobService {
         final String dependencyJarsDir = config.getDependencyJarsDir();
         final String configurationDirectory = FlinkCliFrontend.getConfigurationDirectoryFromEnv();
         final Configuration configuration = GlobalConfiguration.loadConfiguration(configurationDirectory);
-        final List<CustomCommandLine<?>> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(configuration, configurationDirectory);
+        final List<CustomCommandLine> customCommandLines = FlinkCliFrontend.loadCustomCommandLines(configuration, configurationDirectory);
         final FlinkCliFrontend flinkCliFrontend = new FlinkCliFrontend(configuration, customCommandLines);
 
         final JobGraph jobGraph = FlinkJobGraph.jobGraph(configuration, customCommandLines, flinkCliFrontend, jobRunConfig, config.getSql(), dependencyJarsDir);

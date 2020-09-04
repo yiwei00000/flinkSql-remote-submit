@@ -37,4 +37,6 @@ public class JobRunConfig {
     private JobRunType jobRunType;
 
     private Boolean isDetached = true;
+
+    private Boolean isRestoreFromCK = true;
 }

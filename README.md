@@ -1,5 +1,5 @@
 # 远程提交flink sql 到  yarn集群
-目前支持flink-1.9.3版本 
+目前支持flink-1.10.2版本（改造中，还不可用） 
 
 模块介绍:  
 1、flink-sql-mix：定义source、sink、udf/udaf/udtf模块,支持该模块的热部署（及每次提交都会重新加载该模块的jar包）  

@@ -48,7 +48,7 @@ public class SqlParserUtil {
                 continue;
             }
 
-            SqlNode sqlNode = planner.parse(sqlInfo.getSqlContent());
+            SqlNode sqlNode = planner.parser().parse(sqlInfo.getSqlContent());
             SqlNodeInfo sqlNodeInfo = new SqlNodeInfo(sqlNode, sqlInfo.getSqlContent());
             sqlNodeInfoList.add(sqlNodeInfo);
         }

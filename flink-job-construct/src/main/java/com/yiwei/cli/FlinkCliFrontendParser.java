@@ -21,7 +21,6 @@ package com.yiwei.cli;
 import org.apache.commons.cli.*;
 import org.apache.flink.client.cli.CliArgsException;
 import org.apache.flink.client.cli.CustomCommandLine;
-import org.apache.flink.client.cli.RunOptions;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 
@@ -298,25 +297,8 @@ public class FlinkCliFrontendParser {
 		return options;
 	}
 
-	/**
-	 * Prints the help for the client.
-	 */
-	public static void printHelp(Collection<CustomCommandLine<?>> customCommandLines) {
-		System.out.println("./flink <ACTION> [OPTIONS] [ARGUMENTS]");
-		System.out.println();
-		System.out.println("The following actions are available:");
 
-		printHelpForRun(customCommandLines);
-		printHelpForInfo();
-		printHelpForList(customCommandLines);
-		printHelpForStop(customCommandLines);
-		printHelpForCancel(customCommandLines);
-		printHelpForSavepoint(customCommandLines);
-
-		System.out.println();
-	}
-
-	public static void printHelpForRun(Collection<CustomCommandLine<?>> customCommandLines) {
+	public static void printHelpForRun(Collection<CustomCommandLine> customCommandLines) {
 		HelpFormatter formatter = new HelpFormatter();
 		formatter.setLeftPadding(5);
 		formatter.setWidth(80);
@@ -331,78 +313,8 @@ public class FlinkCliFrontendParser {
 		System.out.println();
 	}
 
-	public static void printHelpForInfo() {
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.setLeftPadding(5);
-		formatter.setWidth(80);
 
-		System.out.println("\nAction \"info\" shows the optimized execution plan of the program (JSON).");
-		System.out.println("\n  Syntax: info [OPTIONS] <jar-file> <arguments>");
-		formatter.setSyntaxPrefix("  \"info\" action options:");
-		formatter.printHelp(" ", getInfoOptionsWithoutDeprecatedOptions(new Options()));
 
-		System.out.println();
-	}
-
-	public static void printHelpForList(Collection<CustomCommandLine<?>> customCommandLines) {
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.setLeftPadding(5);
-		formatter.setWidth(80);
-
-		System.out.println("\nAction \"list\" lists running and scheduled programs.");
-		System.out.println("\n  Syntax: list [OPTIONS]");
-		formatter.setSyntaxPrefix("  \"list\" action options:");
-		formatter.printHelp(" ", getListOptionsWithoutDeprecatedOptions(new Options()));
-
-		printCustomCliOptions(customCommandLines, formatter, false);
-
-		System.out.println();
-	}
-
-	public static void printHelpForStop(Collection<CustomCommandLine<?>> customCommandLines) {
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.setLeftPadding(5);
-		formatter.setWidth(80);
-
-		System.out.println("\nAction \"stop\" stops a running program with a savepoint (streaming jobs only).");
-		System.out.println("\n  Syntax: stop [OPTIONS] <Job ID>");
-		formatter.setSyntaxPrefix("  \"stop\" action options:");
-		formatter.printHelp(" ", getStopOptionsWithoutDeprecatedOptions(new Options()));
-
-		printCustomCliOptions(customCommandLines, formatter, false);
-
-		System.out.println();
-	}
-
-	public static void printHelpForCancel(Collection<CustomCommandLine<?>> customCommandLines) {
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.setLeftPadding(5);
-		formatter.setWidth(80);
-
-		System.out.println("\nAction \"cancel\" cancels a running program.");
-		System.out.println("\n  Syntax: cancel [OPTIONS] <Job ID>");
-		formatter.setSyntaxPrefix("  \"cancel\" action options:");
-		formatter.printHelp(" ", getCancelOptionsWithoutDeprecatedOptions(new Options()));
-
-		printCustomCliOptions(customCommandLines, formatter, false);
-
-		System.out.println();
-	}
-
-	public static void printHelpForSavepoint(Collection<CustomCommandLine<?>> customCommandLines) {
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.setLeftPadding(5);
-		formatter.setWidth(80);
-
-		System.out.println("\nAction \"savepoint\" triggers savepoints for a running job or disposes existing ones.");
-		System.out.println("\n  Syntax: savepoint [OPTIONS] <Job ID> [<target directory>]");
-		formatter.setSyntaxPrefix("  \"savepoint\" action options:");
-		formatter.printHelp(" ", getSavepointOptionsWithoutDeprecatedOptions(new Options()));
-
-		printCustomCliOptions(customCommandLines, formatter, false);
-
-		System.out.println();
-	}
 
 	/**
 	 * Prints custom cli options.
@@ -410,7 +322,7 @@ public class FlinkCliFrontendParser {
 	 * @param runOptions True if the run options should be printed, False to print only general options
 	 */
 	private static void printCustomCliOptions(
-			Collection<CustomCommandLine<?>> customCommandLines,
+			Collection<CustomCommandLine> customCommandLines,
 			HelpFormatter formatter,
 			boolean runOptions) {
 		// prints options from all available command-line classes
@@ -426,30 +338,9 @@ public class FlinkCliFrontendParser {
 		}
 	}
 
-	public static SavepointRestoreSettings createSavepointRestoreSettings(CommandLine commandLine) {
-		if (commandLine.hasOption(SAVEPOINT_PATH_OPTION.getOpt())) {
-			String savepointPath = commandLine.getOptionValue(SAVEPOINT_PATH_OPTION.getOpt());
-			boolean allowNonRestoredState = commandLine.hasOption(SAVEPOINT_ALLOW_NON_RESTORED_OPTION.getOpt());
-			return SavepointRestoreSettings.forPath(savepointPath, allowNonRestoredState);
-		} else {
-			return SavepointRestoreSettings.none();
-		}
-	}
 
-	// --------------------------------------------------------------------------------------------
-	//  Line Parsing
-	// --------------------------------------------------------------------------------------------
 
-	public static RunOptions parseRunCommand(String[] args) throws CliArgsException {
-		try {
-			DefaultParser parser = new DefaultParser();
-			CommandLine line = parser.parse(RUN_OPTIONS, args, true);
-			return new RunOptions(line);
-		}
-		catch (ParseException e) {
-			throw new CliArgsException(e.getMessage());
-		}
-	}
+
 
 	public static CommandLine parse(Options options, String[] args, boolean stopAtNonOptions) throws CliArgsException {
 		final DefaultParser parser = new DefaultParser();

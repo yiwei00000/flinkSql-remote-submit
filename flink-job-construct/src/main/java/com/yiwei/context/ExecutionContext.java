@@ -3,80 +3,84 @@ package com.yiwei.context;
 
 import com.yiwei.sql.config.JobRunConfig;
 import com.yiwei.utils.JarUtils;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.Plan;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.time.Time;
-import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.client.cli.CliArgsException;
-import org.apache.flink.client.cli.CustomCommandLine;
-import org.apache.flink.client.cli.RunOptions;
-import org.apache.flink.client.deployment.ClusterDescriptor;
-import org.apache.flink.client.deployment.ClusterSpecification;
-import org.apache.flink.client.program.ClusterClient;
+import org.apache.flink.client.FlinkPipelineTranslationUtil;
+import org.apache.flink.client.deployment.executors.ExecutorUtils;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.core.fs.Path;
 import org.apache.flink.core.plugin.TemporaryClassLoaderContext;
-import org.apache.flink.optimizer.DataStatistics;
-import org.apache.flink.optimizer.Optimizer;
-import org.apache.flink.optimizer.costs.DefaultCostEstimator;
-import org.apache.flink.optimizer.plan.FlinkPlan;
 import org.apache.flink.runtime.execution.librarycache.FlinkUserCodeClassLoaders;
 import org.apache.flink.runtime.jobgraph.JobGraph;
-import org.apache.flink.streaming.api.TimeCharacteristic;
+import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
+import org.apache.flink.runtime.state.filesystem.AbstractFsCheckpointStorage;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.*;
-import org.apache.flink.table.api.java.BatchTableEnvironment;
-import org.apache.flink.table.api.java.StreamTableEnvironment;
+import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.TableConfig;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.java.internal.StreamTableEnvironmentImpl;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.FunctionCatalog;
 import org.apache.flink.table.catalog.GenericInMemoryCatalog;
 import org.apache.flink.table.client.config.Environment;
-import org.apache.flink.table.client.config.entries.*;
-import org.apache.flink.table.client.gateway.SessionContext;
+import org.apache.flink.table.client.config.entries.ExecutionEntry;
+import org.apache.flink.table.client.config.entries.SinkTableEntry;
+import org.apache.flink.table.client.config.entries.SourceSinkTableEntry;
+import org.apache.flink.table.client.config.entries.SourceTableEntry;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.delegation.Executor;
 import org.apache.flink.table.delegation.ExecutorFactory;
 import org.apache.flink.table.delegation.Planner;
 import org.apache.flink.table.delegation.PlannerFactory;
 import org.apache.flink.table.factories.*;
-import org.apache.flink.table.functions.*;
+import org.apache.flink.table.functions.FunctionService;
+import org.apache.flink.table.functions.UserDefinedFunction;
+import org.apache.flink.table.module.ModuleManager;
 import org.apache.flink.table.planner.delegation.ExecutorBase;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
-import org.apache.flink.util.FlinkException;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.apache.flink.runtime.state.filesystem.AbstractFsCheckpointStorage.METADATA_FILE_NAME;
 
 /**
  * @author yiwei  2020/4/5
  */
-public class ExecutionContext<T> {
-    private final SessionContext sessionContext;
+public class ExecutionContext {
+
+    private final static Logger LOG = LoggerFactory.getLogger(ExecutionContext.class);
+    private final static String CHECKPOINT_PATH = "hdfs:///flink/checkpoint/";
+
     private final Environment mergedEnv;
     private final List<File> dependencies;
     private final ClassLoader classLoader;
+    private final Configuration flinkConfig;
     private final Map<String, TableSource> tableSources;
     private final Map<String, TableSink<?>> tableSinks;
     private final Map<String, Catalog> catalogs;
     private final Map<String, UserDefinedFunction> functions;
-    private final Configuration flinkConfig;
-    private final CommandLine commandLine;
-    private final CustomCommandLine<T> activeCommandLine;
-    private final RunOptions runOptions;
-    private final T clusterId;
-    private final ClusterSpecification clusterSpec;
 
     private final ExecutionContext.EnvironmentInstance environmentInstance;
 
@@ -92,10 +96,9 @@ public class ExecutionContext<T> {
             .checkpointInterval(DEFAULT_CHECKPOINT_INTERVAL)
             .build();
 
-    public ExecutionContext(Environment defaultEnvironment, SessionContext sessionContext, List<File> dependencies,
-                            Configuration flinkConfig, Options commandLineOptions, List<CustomCommandLine<?>> availableCommandLines, JobRunConfig jobRunConfig) throws MalformedURLException {
-        this.sessionContext = sessionContext.copy(); // create internal copy because session context is mutable
-        this.mergedEnv = Environment.merge(defaultEnvironment, sessionContext.getEnvironment());
+    public ExecutionContext(Environment defaultEnvironment, List<File> dependencies, Configuration flinkConfig, JobRunConfig jobRunConfig) throws MalformedURLException {
+
+        this.mergedEnv = defaultEnvironment;
         this.dependencies = dependencies;
         this.flinkConfig = flinkConfig;
 
@@ -104,7 +107,7 @@ public class ExecutionContext<T> {
         // create class loader 并设定当前线程classloader
         classLoader = FlinkUserCodeClassLoaders.parentFirst(
                 dependencyUrls.toArray(new URL[dependencies.size()]),
-                this.getClass().getClassLoader());
+                this.getClass().getClassLoader(), null);
         Thread.currentThread().setContextClassLoader(classLoader);
 
         // create catalogs
@@ -132,81 +135,12 @@ public class ExecutionContext<T> {
             functions.put(name, function);
         });
 
-        // convert deployment options into command line options that describe a cluster
-        commandLine = createCommandLine(mergedEnv.getDeployment(), commandLineOptions);
-        activeCommandLine = findActiveCommandLine(availableCommandLines, commandLine);
-        runOptions = createRunOptions(commandLine);
-        clusterId = activeCommandLine.getClusterId(commandLine);
-        clusterSpec = createClusterSpecification(activeCommandLine, commandLine);
 
         // always share environment instance
         if (null == jobRunConfig) {
             environmentInstance = new ExecutionContext.EnvironmentInstance(DEFAULT_ENABLE_CHECKPOINT, DEFAULT_JOB_RUN_CONFIG);
         } else {
             environmentInstance = new ExecutionContext.EnvironmentInstance(DEFAULT_ENABLE_CHECKPOINT, jobRunConfig);
-        }
-    }
-
-
-    public ClusterDescriptor<T> createClusterDescriptor() throws Exception {
-        return activeCommandLine.createClusterDescriptor(commandLine);
-    }
-
-
-    public ExecutionContext.EnvironmentInstance createEnvironmentInstance() {
-        if (environmentInstance != null) {
-            return environmentInstance;
-        }
-        try {
-            return new ExecutionContext.EnvironmentInstance(DEFAULT_ENABLE_CHECKPOINT, DEFAULT_JOB_RUN_CONFIG);
-        } catch (Throwable t) {
-            // catch everything such that a wrong environment does not affect invocations
-            throw new SqlExecutionException("Could not create environment instance.", t);
-        }
-    }
-
-    /**
-     * Executes the given supplier using the execution context's classloader as thread classloader.
-     */
-    public <R> R wrapClassLoader(Supplier<R> supplier) {
-        try (TemporaryClassLoaderContext tmpCl = new TemporaryClassLoaderContext(classLoader)) {
-            return supplier.get();
-        }
-    }
-
-    // --------------------------------------------------------------------------------------------
-
-    private static CommandLine createCommandLine(DeploymentEntry deployment, Options commandLineOptions) {
-        try {
-            return deployment.getCommandLine(commandLineOptions);
-        } catch (Exception e) {
-            throw new SqlExecutionException("Invalid deployment options.", e);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> CustomCommandLine<T> findActiveCommandLine(List<CustomCommandLine<?>> availableCommandLines, CommandLine commandLine) {
-        for (CustomCommandLine<?> cli : availableCommandLines) {
-            if (cli.isActive(commandLine)) {
-                return (CustomCommandLine<T>) cli;
-            }
-        }
-        throw new SqlExecutionException("Could not find a matching deployment.");
-    }
-
-    private static RunOptions createRunOptions(CommandLine commandLine) {
-        try {
-            return new RunOptions(commandLine);
-        } catch (CliArgsException e) {
-            throw new SqlExecutionException("Invalid deployment run options.", e);
-        }
-    }
-
-    private static ClusterSpecification createClusterSpecification(CustomCommandLine<?> activeCommandLine, CommandLine commandLine) {
-        try {
-            return activeCommandLine.getClusterSpecification(commandLine);
-        } catch (FlinkException e) {
-            throw new SqlExecutionException("Could not create cluster specification for the given deployment.", e);
         }
     }
 
@@ -242,95 +176,48 @@ public class ExecutionContext<T> {
         throw new SqlExecutionException("Unsupported execution type for sinks.");
     }
 
-    private static TableEnvironment createStreamTableEnvironment(
-            StreamExecutionEnvironment env,
-            EnvironmentSettings settings,
-            Executor executor) {
 
-        final TableConfig config = TableConfig.getDefault();
-
-        final CatalogManager catalogManager = new CatalogManager(
-                settings.getBuiltInCatalogName(),
-                new GenericInMemoryCatalog(settings.getBuiltInCatalogName(), settings.getBuiltInDatabaseName()));
-
-        final FunctionCatalog functionCatalog = new FunctionCatalog(catalogManager);
-
-        final Map<String, String> plannerProperties = settings.toPlannerProperties();
-        final Planner planner = ComponentFactoryService.find(PlannerFactory.class, plannerProperties)
-                .create(plannerProperties, executor, config, functionCatalog, catalogManager);
-
-        return new StreamTableEnvironmentImpl(
-                catalogManager,
-                functionCatalog,
-                config,
-                env,
-                planner,
-                executor,
-                settings.isStreamingMode()
-        );
-    }
-
-    private static Executor lookupExecutor(
-            Map<String, String> executorProperties,
-            StreamExecutionEnvironment executionEnvironment) {
+    public ExecutionContext.EnvironmentInstance createEnvironmentInstance() {
+        if (environmentInstance != null) {
+            return environmentInstance;
+        }
         try {
-            ExecutorFactory executorFactory = ComponentFactoryService.find(ExecutorFactory.class, executorProperties);
-            Method createMethod = executorFactory.getClass()
-                    .getMethod("create", Map.class, StreamExecutionEnvironment.class);
-
-            return (Executor) createMethod.invoke(
-                    executorFactory,
-                    executorProperties,
-                    executionEnvironment);
-        } catch (Exception e) {
-            throw new TableException(
-                    "Could not instantiate the executor. Make sure a planner module is on the classpath",
-                    e);
+            return new ExecutionContext.EnvironmentInstance(DEFAULT_ENABLE_CHECKPOINT, DEFAULT_JOB_RUN_CONFIG);
+        } catch (Throwable t) {
+            // catch everything such that a wrong environment does not affect invocations
+            throw new SqlExecutionException("Could not create environment instance.", t);
         }
     }
 
-    // --------------------------------------------------------------------------------------------
-
     /**
-     * {@link ExecutionEnvironment} and {@link StreamExecutionEnvironment} cannot be reused
-     * across multiple queries because they are stateful. This class abstracts execution
-     * environments and table environments.
+     * Executes the given supplier using the execution context's classloader as thread classloader.
      */
+    public <R> R wrapClassLoader(Supplier<R> supplier) {
+        try (TemporaryClassLoaderContext tmpCl = new TemporaryClassLoaderContext(classLoader)) {
+            return supplier.get();
+        }
+    }
+
+
     public class EnvironmentInstance {
 
-        private final QueryConfig queryConfig;
-        private final ExecutionEnvironment execEnv;
         private final StreamExecutionEnvironment streamExecEnv;
-        private final Executor executor;
         private final TableEnvironment tableEnv;
+        private Executor executor;
 
         private EnvironmentInstance(Boolean enableCheckpoint, JobRunConfig jobRunConfig) {
-            // create settings
-//            final EnvironmentSettings settings = mergedEnv.getExecution().getEnvironmentSettings();
+
             EnvironmentSettings settings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
 
             // create environments
-            if (mergedEnv.getExecution().isStreamingPlanner()) {
-                streamExecEnv = createStreamExecutionEnvironment(enableCheckpoint, jobRunConfig.getCheckpointInterval(), jobRunConfig.getDefaultParallelism());
-                execEnv = null;
-
-                final Map<String, String> executorProperties = settings.toExecutorProperties();
-                executor = lookupExecutor(executorProperties, streamExecEnv);
-                tableEnv = createStreamTableEnvironment(streamExecEnv, settings, executor);
-            } else if (mergedEnv.getExecution().isBatchPlanner()) {
-                streamExecEnv = null;
-                execEnv = createExecutionEnvironment();
-                executor = null;
-                tableEnv = BatchTableEnvironment.create(execEnv);
-            } else {
-                throw new SqlExecutionException("Unsupported execution type specified.");
-            }
+            streamExecEnv = createStreamExecutionEnvironment(enableCheckpoint, jobRunConfig.getCheckpointInterval(), jobRunConfig.getDefaultParallelism());
+            final Map<String, String> executorProperties = settings.toExecutorProperties();
+            executor = lookupExecutor(executorProperties, streamExecEnv);
+            tableEnv = createStreamTableEnvironment(streamExecEnv, settings, executor);
 
             // register catalogs
             catalogs.forEach(tableEnv::registerCatalog);
 
-            // create query config
-            queryConfig = createQueryConfig();
 
             // register table sources
             tableSources.forEach(tableEnv::registerTableSource);
@@ -338,39 +225,32 @@ public class ExecutionContext<T> {
             // register table sinks
             tableSinks.forEach(tableEnv::registerTableSink);
 
-            // register user-defined functions
-            registerFunctions();
-
-            // register views and temporal tables in specified order
-            mergedEnv.getTables().forEach((name, entry) -> {
-                // if registering a view fails at this point,
-                // it means that it accesses tables that are not available anymore
-                if (entry instanceof ViewEntry) {
-                    final ViewEntry viewEntry = (ViewEntry) entry;
-                    registerView(viewEntry);
-                } else if (entry instanceof TemporalTableEntry) {
-                    final TemporalTableEntry temporalTableEntry = (TemporalTableEntry) entry;
-                    registerTemporalTable(temporalTableEntry);
-                }
-            });
-
-            // can not config source parallelism
-            int sourceParallelism = jobRunConfig.getSourceParallelism() > 0 ? jobRunConfig.getSourceParallelism() : jobRunConfig.getDefaultParallelism();
-
-            if (sessionContext.getCurrentCatalog().isPresent()) {
-                tableEnv.useCatalog(sessionContext.getCurrentCatalog().get());
-            } else if (mergedEnv.getExecution().getCurrentCatalog().isPresent()) {
+            if (mergedEnv.getExecution().getCurrentCatalog().isPresent()) {
                 tableEnv.useCatalog(mergedEnv.getExecution().getCurrentCatalog().get());
+            }
+
+
+        }
+
+        private Executor lookupExecutor(
+                Map<String, String> executorProperties,
+                StreamExecutionEnvironment executionEnvironment) {
+            try {
+                ExecutorFactory executorFactory = ComponentFactoryService.find(ExecutorFactory.class, executorProperties);
+                Method createMethod = executorFactory.getClass()
+                        .getMethod("create", Map.class, StreamExecutionEnvironment.class);
+
+                return (Executor) createMethod.invoke(
+                        executorFactory,
+                        executorProperties,
+                        executionEnvironment);
+            } catch (Exception e) {
+                throw new TableException(
+                        "Could not instantiate the executor. Make sure a planner module is on the classpath",
+                        e);
             }
         }
 
-        public QueryConfig getQueryConfig() {
-            return queryConfig;
-        }
-
-        public StreamExecutionEnvironment getStreamExecutionEnvironment() {
-            return streamExecEnv;
-        }
 
         public TableEnvironment getTableEnvironment() {
             return tableEnv;
@@ -382,7 +262,8 @@ public class ExecutionContext<T> {
 
         public JobGraph createJobGraph(String name) {
 
-            final FlinkPlan plan = createPlan(name, flinkConfig);
+
+            StreamGraph streamGraph = streamExecEnv.getStreamGraph(name);
 
             List<URL> dependenciesURLs;
             try {
@@ -391,49 +272,71 @@ public class ExecutionContext<T> {
                 throw new UncheckedIOException("convert files to urls error: " + dependencies, e);
             }
 
-            JobGraph jobGraph = ClusterClient.getJobGraph(
-                    flinkConfig,
-                    plan,
-                    dependenciesURLs,
-                    runOptions.getClasspaths(),
-                    runOptions.getSavepointRestoreSettings());
+            if (executor instanceof ExecutorBase) {
+                streamGraph = ((ExecutorBase) executor).getStreamGraph(name);
+            }
+
+            final JobGraph jobGraph = ExecutorUtils.getJobGraph(streamGraph, flinkConfig);
+
+            for (URL dependenciesURL : dependenciesURLs) {
+                try {
+                    jobGraph.addJar(new Path(dependenciesURL.toURI()));
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException("URL is invalid. This should not happen.", e);
+                }
+
+            }
 
             return jobGraph;
+
         }
 
-        private FlinkPlan createPlan(String name, Configuration flinkConfig) {
-            if (streamExecEnv != null) {
-                // special case for Blink planner to apply batch optimizations
-                // note: it also modifies the ExecutionConfig!
-                if (executor instanceof ExecutorBase) {
-                    return ((ExecutorBase) executor).getStreamGraph(name);
+        private SavepointRestoreSettings getSavepointRestoreSettings(String jobName) {
+            org.apache.hadoop.fs.Path appCheckpointPath = new org.apache.hadoop.fs.Path(CHECKPOINT_PATH, jobName);
+            org.apache.hadoop.conf.Configuration conf = new org.apache.hadoop.conf.Configuration();
+            SavepointRestoreSettings savepointRestoreSettings = null;
+            try {
+                FileSystem fileSystem = FileSystem.get(conf);
+                if (!fileSystem.exists(appCheckpointPath)) {
+                    // 没有app对应的checkpoint则不处理
+                    LOG.info("没有找到checkpoint文件");
+                    return null;
                 }
-                return streamExecEnv.getStreamGraph(name);
-            } else {
-                final int parallelism = execEnv.getParallelism();
-                final Plan unoptimizedPlan = execEnv.createProgramPlan();
-                unoptimizedPlan.setJobName(name);
-                final Optimizer compiler = new Optimizer(new DataStatistics(), new DefaultCostEstimator(), flinkConfig);
-                return ClusterClient.getOptimizedPlan(compiler, unoptimizedPlan, parallelism);
+                List<FileStatus> appCheckDirFiles = Stream.of(fileSystem.listStatus(new org.apache.hadoop.fs.Path(CHECKPOINT_PATH, jobName)))
+                        .flatMap(file -> {
+                            FileStatus[] fileStatuses = null;
+                            try {
+                                fileStatuses = fileSystem.listStatus(file.getPath());
+                            } catch (IOException e) {
+                                LOG.error("查看文件列表失败", e);
+                            }
+                            return Stream.of(fileStatuses);
+                        })
+                        .filter(file -> file.getPath().getName().startsWith(AbstractFsCheckpointStorage.CHECKPOINT_DIR_PREFIX))
+                        .sorted((x, y) -> Long.compare(y.getModificationTime(), x.getModificationTime()))
+                        .collect(Collectors.toList());
+                for (FileStatus fileStatus : appCheckDirFiles) {
+                    org.apache.hadoop.fs.Path metadataFile = new org.apache.hadoop.fs.Path(fileStatus.getPath().toString(), METADATA_FILE_NAME);
+                    if (fileSystem.exists(metadataFile)) {
+                        //allowNonRestoredState （可选）：布尔值，指定如果保存点包含无法映射回作业的状态，是否应拒绝作业提交。 default is false
+                        LOG.info("Find Savepoint {}", metadataFile);
+                        savepointRestoreSettings = SavepointRestoreSettings.forPath(fileStatus.getPath().toString(), true);
+                        break;
+                    }
+                }
+            } catch (IOException e) {
+                LOG.error("获取filsystem失败", e);
             }
+
+            return savepointRestoreSettings;
         }
 
-        private ExecutionEnvironment createExecutionEnvironment() {
-            final ExecutionEnvironment execEnv = ExecutionEnvironment.getExecutionEnvironment();
-            execEnv.setRestartStrategy(mergedEnv.getExecution().getRestartStrategy());
-            execEnv.setParallelism(mergedEnv.getExecution().getParallelism());
-            return execEnv;
-        }
 
         private StreamExecutionEnvironment createStreamExecutionEnvironment(Boolean enableCheckpoint, Long interval, Integer defaultParallelism) {
             final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            env.setRestartStrategy(mergedEnv.getExecution().getRestartStrategy());
-            env.setParallelism(mergedEnv.getExecution().getParallelism());
-            env.setMaxParallelism(mergedEnv.getExecution().getMaxParallelism());
-            env.setStreamTimeCharacteristic(mergedEnv.getExecution().getTimeCharacteristic());
-            if (env.getStreamTimeCharacteristic() == TimeCharacteristic.EventTime) {
-                env.getConfig().setAutoWatermarkInterval(mergedEnv.getExecution().getPeriodicWatermarksInterval());
-            }
+            env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3, Time.milliseconds(10000)));
+            env.setParallelism(1);
+            env.setMaxParallelism(6);
 
             if (Objects.nonNull(enableCheckpoint) && enableCheckpoint) {
                 if (Objects.nonNull(interval) && interval > 0) {
@@ -450,80 +353,35 @@ public class ExecutionContext<T> {
             return env;
         }
 
-        private QueryConfig createQueryConfig() {
-            if (mergedEnv.getExecution().isStreamingPlanner()) {
-                final StreamQueryConfig config = new StreamQueryConfig();
-                final long minRetention = mergedEnv.getExecution().getMinStateRetention();
-                final long maxRetention = mergedEnv.getExecution().getMaxStateRetention();
-                config.withIdleStateRetentionTime(Time.milliseconds(minRetention), Time.milliseconds(maxRetention));
-                return config;
-            } else {
-                return new BatchQueryConfig();
-            }
+        private TableEnvironment createStreamTableEnvironment(
+                StreamExecutionEnvironment env,
+                EnvironmentSettings settings,
+                Executor executor) {
+
+            final TableConfig config = TableConfig.getDefault();
+
+            final CatalogManager catalogManager = new CatalogManager(
+                    settings.getBuiltInCatalogName(),
+                    new GenericInMemoryCatalog(settings.getBuiltInCatalogName(), settings.getBuiltInDatabaseName()));
+
+            ModuleManager moduleManager = new ModuleManager();
+            FunctionCatalog functionCatalog = new FunctionCatalog(config, catalogManager, moduleManager);
+
+            final Map<String, String> plannerProperties = settings.toPlannerProperties();
+            final Planner planner = ComponentFactoryService.find(PlannerFactory.class, plannerProperties)
+                    .create(plannerProperties, executor, config, functionCatalog, catalogManager);
+
+            return new StreamTableEnvironmentImpl(
+                    catalogManager,
+                    moduleManager,
+                    functionCatalog,
+                    config,
+                    env,
+                    planner,
+                    executor,
+                    settings.isStreamingMode()
+            );
         }
 
-        private void registerFunctions() {
-            registerFunctions(functions);
-        }
-
-        public void registerFunctions(Map<String, UserDefinedFunction> functions) {
-            if (tableEnv instanceof StreamTableEnvironment) {
-                StreamTableEnvironment streamTableEnvironment = (StreamTableEnvironment) tableEnv;
-                functions.forEach((k, v) -> {
-                    if (v instanceof ScalarFunction) {
-                        streamTableEnvironment.registerFunction(k, (ScalarFunction) v);
-                    } else if (v instanceof AggregateFunction) {
-                        streamTableEnvironment.registerFunction(k, (AggregateFunction<?, ?>) v);
-                    } else if (v instanceof TableFunction) {
-                        streamTableEnvironment.registerFunction(k, (TableFunction<?>) v);
-                    } else {
-                        throw new SqlExecutionException("Unsupported function type: " + v.getClass().getName());
-                    }
-                });
-            } else {
-                BatchTableEnvironment batchTableEnvironment = (BatchTableEnvironment) tableEnv;
-                functions.forEach((k, v) -> {
-                    if (v instanceof ScalarFunction) {
-                        batchTableEnvironment.registerFunction(k, (ScalarFunction) v);
-                    } else if (v instanceof AggregateFunction) {
-                        batchTableEnvironment.registerFunction(k, (AggregateFunction<?, ?>) v);
-                    } else if (v instanceof TableFunction) {
-                        batchTableEnvironment.registerFunction(k, (TableFunction<?>) v);
-                    } else {
-                        throw new SqlExecutionException("Unsupported function type: " + v.getClass().getName());
-                    }
-                });
-            }
-        }
-
-        private void registerView(ViewEntry viewEntry) {
-            try {
-                tableEnv.registerTable(viewEntry.getName(), tableEnv.sqlQuery(viewEntry.getQuery()));
-            } catch (Exception e) {
-                throw new SqlExecutionException(
-                        "Invalid view '" + viewEntry.getName() + "' with query:\n" + viewEntry.getQuery()
-                                + "\nCause: " + e.getMessage());
-            }
-        }
-
-        private void registerTemporalTable(TemporalTableEntry temporalTableEntry) {
-            try {
-                final Table table = tableEnv.scan(temporalTableEntry.getHistoryTable());
-                final TableFunction<?> function = table.createTemporalTableFunction(
-                        temporalTableEntry.getTimeAttribute(),
-                        String.join(",", temporalTableEntry.getPrimaryKeyFields()));
-                if (tableEnv instanceof StreamTableEnvironment) {
-                    StreamTableEnvironment streamTableEnvironment = (StreamTableEnvironment) tableEnv;
-                    streamTableEnvironment.registerFunction(temporalTableEntry.getName(), function);
-                } else {
-                    BatchTableEnvironment batchTableEnvironment = (BatchTableEnvironment) tableEnv;
-                    batchTableEnvironment.registerFunction(temporalTableEntry.getName(), function);
-                }
-            } catch (Exception e) {
-                throw new SqlExecutionException(
-                        "Invalid temporal table '" + temporalTableEntry.getName() + "' over table '" +
-                                temporalTableEntry.getHistoryTable() + ".\nCause: " + e.getMessage());
-            }
-        }
     }
 }
