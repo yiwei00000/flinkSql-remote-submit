@@ -36,11 +36,6 @@ public class PrintSink implements AppendStreamTableSink<Row> {
         return configuredSink;
     }
 
-    @Override
-    public void emitDataStream(DataStream dataStream) {
-
-        //不用实现，后期版本会移除该方法
-    }
 
     @Override
     public String[] getFieldNames() {
@@ -61,6 +56,11 @@ public class PrintSink implements AppendStreamTableSink<Row> {
     public DataType getConsumedDataType() {
         final RowTypeInfo rowTypeInfo = new RowTypeInfo(getFieldTypes(), getFieldNames());
         return fromLegacyInfoToDataType(rowTypeInfo);
+    }
+
+    @Override
+    public void emitDataStream(DataStream<Row> dataStream) {
+
     }
 
     @Override

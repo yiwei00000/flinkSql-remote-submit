@@ -4,7 +4,7 @@ create TABLE user_log (
     item_id VARCHAR,
     category_id VARCHAR,
     behavior VARCHAR,
-    ts TIMESTAMP
+    ts TIMESTAMP(3)
 ) with (
     'connector.type' = 'kafka',-- 使用 kafka connector
     'connector.version' = 'universal',-- kafka 版本，universal 支持 0.11 以上的版本

@@ -272,10 +272,6 @@ public class ExecutionContext {
                 throw new UncheckedIOException("convert files to urls error: " + dependencies, e);
             }
 
-            if (executor instanceof ExecutorBase) {
-                streamGraph = ((ExecutorBase) executor).getStreamGraph(name);
-            }
-
             final JobGraph jobGraph = ExecutorUtils.getJobGraph(streamGraph, flinkConfig);
 
             for (URL dependenciesURL : dependenciesURLs) {
